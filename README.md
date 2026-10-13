@@ -1,5 +1,5 @@
-# aiaqf
-AI-based model to provide air quality forecasting.
+# SIAQF
+Super Intelligence-based model to provide air quality forecasting.
 
 The repository provide the research-to-operation transition for implementing the UFS-DeepAQM, which uses UFS-AQM's inputs to makes air quality forecasting. Two major python scripts are included: the main model driver (`model_pred.py`) and the input generator (`model_input_gen.py`).
 
@@ -24,11 +24,11 @@ The UFS-AQM run used as input sources, forecasting period and chmiecal species, 
 | OUTPUT_PATH      | Path of the work/output directory. A subdirectory based on AQM_DATE and AQM_CYLCE will be created under this path.               |
 | AQM_PATH         | Path of UFS_AQM runs. The input generator will search for the subdirectory based on AQM_DATE and AQM_CYLCE under this path.      |
 | EMI_PATH         | Path of UFS_AQM emissions and IC/BC. The input generator will search for the subdirectory based on AQM_DATE and AQM_CYLCE under this path. |
-| NO2_MODEL_PATH   | Path of the NO2 AI model. Use `None` if no model available.   |
-| NH3_MODEL_PATH   | Path of the NH3 AI model. Use `None` if no model available.   |
-| HCHO_MODEL_PATH  | Path of the HCHO AI model. Use `None` if no model available.  |
-| OZONE_MODEL_PATH | Path of the OZONE AI model. Use `None` if no model available. |
-| PM25_MODEL_PATH  | Path of the PM25 AI model. Use `None` if no model available.  |
+| NO2_MODEL_PATH   | Path of the NO2 machine learning (ML) model. Use `None` if no model available.   |
+| NH3_MODEL_PATH   | Path of the NH3 ML model. Use `None` if no model available.   |
+| HCHO_MODEL_PATH  | Path of the HCHO ML model. Use `None` if no model available.  |
+| OZONE_MODEL_PATH | Path of the OZONE ML model. Use `None` if no model available. |
+| PM25_MODEL_PATH  | Path of the PM25 ML model. Use `None` if no model available.  |
 
 ### Required UFS-AQM inputs
 | Application                          | Filename                                                            |
@@ -39,7 +39,7 @@ The UFS-AQM run used as input sources, forecasting period and chmiecal species, 
 | Initial/Boundary                     | `aqm.t*z.gfs_data.tile7.halo0.nc`, `aqm.t*z.gfs_bndy.tile7.f*.nc` |​
 
 ### Run the models
-AI models are running parallelly in `model_pred.py`. 
+ML models are running parallelly in `model_pred.py`. 
 
 [Update on Aug 26 2026] Parallel process is currently disabled for GPU. See line 108-120 in `model_pred.py`.
 
@@ -50,13 +50,13 @@ On GMU Hopper (1 node 12 core), the input generation process takes ~ 4 min and A
 #SBATCH --mem=72G
 #SBATCH --time=0-00:20:00
 ```
-On NOAA Gaea C6 (1 node 2 core), the input generation process takes ~ 6 min and AI models take ~ 2 min to complete 72 h forecast for two chemical species. Recommended slurm settings to run 72 h forecast for two chemical species on Gaea C6:
+On NOAA Gaea C6 (1 node 2 core), the input generation process takes ~ 6 min and ML models take ~ 2 min to complete 72 h forecast for two chemical species. Recommended slurm settings to run 72 h forecast for two chemical species on Gaea C6:
 ```
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=2
 #SBATCH --time=0-00:10:00
 ```
-On NOAA Ursa, if running on CPU (1 node 20 core), the input generation process takes ~ 11 min and AI models take ~ 1 hour to complete 72 h forecast for two chemical species. If running forecasting on 1 GPU, AI models take ~ 2 min to complete 72 h forecast for two chemical species. Recommended slurm settings to run 72 h forecast for two chemical species on Ursa:
+On NOAA Ursa, if running on CPU (1 node 20 core), the input generation process takes ~ 11 min and ML models take ~ 1 hour to complete 72 h forecast for two chemical species. If running forecasting on 1 GPU, ML models take ~ 2 min to complete 72 h forecast for two chemical species. Recommended slurm settings to run 72 h forecast for two chemical species on Ursa:
 
 [CPU]
 ```
@@ -72,7 +72,7 @@ On NOAA Ursa, if running on CPU (1 node 20 core), the input generation process t
 #SBATCH --time=0-00:20:00
 ```
 
-### AI model version log
+### ML model version log
 | Date        | Version (species_version#_epoch)       |
 | ----------- | -------------------------------------- |
 | Feb 18 2026 | pm25_l1_19, ozone_l2_19                |
