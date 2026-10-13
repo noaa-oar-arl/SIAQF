@@ -24,11 +24,11 @@ The UFS-AQM run used as input sources, forecasting period and chmiecal species, 
 | OUTPUT_PATH      | Path of the work/output directory. A subdirectory based on AQM_DATE and AQM_CYLCE will be created under this path.               |
 | AQM_PATH         | Path of UFS_AQM runs. The input generator will search for the subdirectory based on AQM_DATE and AQM_CYLCE under this path.      |
 | EMI_PATH         | Path of UFS_AQM emissions and IC/BC. The input generator will search for the subdirectory based on AQM_DATE and AQM_CYLCE under this path. |
-| NO2_MODEL_PATH   | Path of the NO2 machine learning (ML) model. Use `None` if no model available.   |
-| NH3_MODEL_PATH   | Path of the NH3 ML model. Use `None` if no model available.   |
-| HCHO_MODEL_PATH  | Path of the HCHO ML model. Use `None` if no model available.  |
-| OZONE_MODEL_PATH | Path of the OZONE ML model. Use `None` if no model available. |
-| PM25_MODEL_PATH  | Path of the PM25 ML model. Use `None` if no model available.  |
+| NO2_MODEL_PATH   | Path of the NO2 machine learning (ML) model. Use `None` if no model avlable.   |
+| NH3_MODEL_PATH   | Path of the NH3 ML model. Use `None` if no model avlable.   |
+| HCHO_MODEL_PATH  | Path of the HCHO ML model. Use `None` if no model avlable.  |
+| OZONE_MODEL_PATH | Path of the OZONE ML model. Use `None` if no model avlable. |
+| PM25_MODEL_PATH  | Path of the PM25 ML model. Use `None` if no model avlable.  |
 
 ### Required UFS-AQM inputs
 | Application                          | Filename                                                            |
@@ -43,7 +43,7 @@ ML models are running parallelly in `model_pred.py`.
 
 [Update on Aug 26 2026] Parallel process is currently disabled for GPU. See line 108-120 in `model_pred.py`.
 
-On GMU Hopper (1 node 12 core), the input generation process takes ~ 4 min and AI models take ~ 13 min to complete 72 h forecast for two chemical species. Recommended slurm settings to run 72 h forecast for two chemical species on Hopper:
+On GMU Hopper (1 node 12 core), the input generation process takes ~ 4 min and ML models take ~ 13 min to complete 72 h forecast for two chemical species. Recommended slurm settings to run 72 h forecast for two chemical species on Hopper:
 ```
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=12
