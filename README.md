@@ -6,7 +6,7 @@ The repository provide the research-to-operation transition for implementing the
 Current UFS-DeepAQM has two model modes: Base and Fusion modes.
 The Base mode uses the benchmark version of UFS-DeepAQM, emulator of UFS-AQMv8 that purely based on UFS-AQM's initial and boundary conditions. The Fusion mode creates fused initial condision from UFS-AQM products and satellite and surface observations, then generates air quality forecast based on fused fields.
 
-### Namelist options
+## Namelist options
 The UFS-AQM run used as input sources, forecasting period and chmiecal species, and input and output directories can be specified in the namelist. Five chmiecal species (NO2, NH3, HCHO, O3 and PM2.5) are set as default, but currently only O3 and PM2.5 are available (updated on Feb 25 2026).
 
 | Option           | Description                                             |
@@ -42,8 +42,8 @@ The UFS-AQM run used as input sources, forecasting period and chmiecal species, 
 | OZONE_FUSION_PATH| Path of OZONE fusion-ic model. Use `None` if no model avlable. Required for FUSION MODE only. |
 | PM25_FUSION_PATH | Path of PM25 fusion-ic model. Use `None` if no model avlable. Required for FUSION MODE only.  |
 
-### Required inputs
-## UFS-AQM
+## Required inputs
+### UFS-AQM
 | Application                          | Filename                                                            |
 | ------------------------------------ | ------------------------------------------------------------------- |
 | Model Coordinate / land properties   | `grid_spec.nc` `atmos_static.nc` (included in `fix/`)               |
@@ -51,23 +51,23 @@ The UFS-AQM run used as input sources, forecasting period and chmiecal species, 
 | Emission                             | `aqm.t*z.NEXUS_Expt.nc`, `aqm.t*z.PT.nc`, `Hourly_Emissions_*.nc` |
 | Initial/Boundary                     | `aqm.t*z.gfs_data.tile7.halo0.nc`, `aqm.t*z.gfs_bndy.tile7.f*.nc` |​
 
-## Observations for fusion mode
+### Observations for fusion mode
 | Dataset              | Filename                                                            |
 | -------------------- | ------------------------------------------------------------------- |
 | VIIRS AOD            | `viirs_eps_npp_aod_0.100_deg_*_nrt.nc` Can be downloaded from [NOAA/NESDIS/STAR](https://www.star.nesdis.noaa.gov/pub/smcd/VIIRS_Aerosol/viirs_aerosol_gridded_data/snpp/aod/eps/)                    |
 | TEMPO NO2            | `TEMPO_NO2_L3_NRT_V02_*.nc`Can be downloaded from [EARTHDATA](https://www.earthdata.nasa.gov/data/instruments/tempo/data-access-tools)   |
 | Surface measurements (Airnow by defalut)  | `HourlyAQObs_*.dat` Can be downloaded from [AirNow-Tech](https://files.airnowtech.org/)                             |
 
-### Script description
-## Primary workflow
-| Filename             | Application                                                            |
-| -------------------- | ---------------------------------------------------------------------- |
-| `model_pred`         | Main driver, calling processes according to namelist                   |
-| `model_input_gen`    | Input generator for Base mode                                          |
-| `model_fusion_gen`   | Input generator for Fusion mode                                        |
-| `namelist_gen`       | Namelist generator. Optional, mainly used for multiple forecast cycle  |
+## Script description
+### Primary workflow
+| Filename             | Application                                                               |
+| -------------------- | ------------------------------------------------------------------------- |
+| `model_pred`         | Main driver, calling processes according to namelist                      |
+| `model_input_gen`    | Input generator for Base mode                                             |
+| `model_fusion_gen`   | Input generator for Fusion mode                                           |
+| `namelist_gen`       | Namelist generator. Optional tool for automatic daily application and/or multi-timestep runs      |
 
-## Toolkit
+### Toolkit
 | Filename               | Application                                                         |
 | ---------------------- | ------------------------------------------------------------------- |
 | `aqm_loaders`          | Data loader of UFS-AQM fields (air quality, meteorology, emissions, initial/boundary conditions)  |
@@ -78,7 +78,7 @@ The UFS-AQM run used as input sources, forecasting period and chmiecal species, 
 | `airnow2aqm_regridder` | Regridding AirNow products to UFS-AQM coordinate                    |
 | `pt2aqm_grid_gen`      | Generator of grid index based on UFS-AQM coordinate for quick plume emission mapping, required when changing emission versions (e.g. UFS-AQMv8 -> v7). This script is not included in the forecast workflow and should be called before running the workflow.               |
 
-### Run the models
+## Run the models
 ML models are running parallelly in `model_pred.py`. 
 
 [Update on Aug 26 2026] Parallel process is currently disabled for GPU. See line 108-120 in `model_pred.py`.
@@ -112,8 +112,8 @@ On NOAA Ursa, if running on CPU (1 node 20 core), the input generation process t
 #SBATCH --time=0-00:20:00
 ```
 
-### ML model version log
+## ML model version log
 | Date        | Version (species_version#_epoch)       |
 | ----------- | -------------------------------------- |
 | Feb 18 2026 | (Base) pm25_l1_19, ozone_l2_19         |
-| Nov 9 2026  | (Fusion-ic) pm25_k4_8, ozone_l41_7 (Fusion-fcst) pm25_aa93_17, ozone_bb93_17   |
+| Nov 9 2026  | (Fusion-ic) pm25_k4_8, ozone_l41_7<br/>(Fusion-fcst) pm25_aa93_17, ozone_bb93_17 |
