@@ -1,15 +1,10 @@
-/fusion_model_set
 /obs
 /*.sh
 /*.out
 /.pre-commit-config.yaml
 /.git/
-/create_netrc.pl
 
 # Fix files
-/fix/airnow2aqm_grid_idx.nc
-/fix/regrid_tempo_*
-/fix/regrid_viirs_*
 
 # ML model files
 /models/readme
@@ -17,17 +12,18 @@
 /models/__pycache__/
 
 # Toolkit
-/toolkit/airnow2aqm_regridder.py
 /toolkit/aqs2aqm_regridder.py
-/toolkit/sat2aqm_regridder.py
 /toolkit/data_loaders_all.py
 /toolkit/__pycache__/
 
 # Output folder
 /output/20*/
 /output/*.tar.gz
+/output_fusion/
 
 # Source code
 /scripts/model_evaluation.py
 /scripts/model_evaluation_monthly.py
+/scripts/namelist_gen_fusion.py
+/scripts/obs_download.*
 /scripts/__pycache__/

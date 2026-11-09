@@ -149,7 +149,7 @@ class input_generator():
         area = aqm_loader("./fix/grid_spec.nc", "area")
         for i in range(len(varlist)):
             data = plume_emi_loader(
-                emi_path + "/aqm.t12z.PT.nc",
+                plume_emi_file,
                 varlist[i],
                 time_length,
             )

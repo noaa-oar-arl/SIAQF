@@ -1,8 +1,10 @@
-AQM_DATE=20260826
+AQM_DATE=20261109
 AQM_CYCLE=12
 FCST_LENGTH=72
 BNDY_LENGTH=6
 FCST_LAYER=64
+
+MODEL_MODE=0
 
 MET_OPTION=gfs
 BNDY_OPTION=fcst
@@ -19,9 +21,18 @@ OUTPUT_PATH=/scratch4/NCEPDEV/naqfc/Wei-ting.Hung/deepaqm/output
 MET_PATH=/scratch3/NCEPDEV/stmp/Youhua.Tang/gfs-sfc
 AQM_PATH=/scratch3/NCEPDEV/stmp/Youhua.Tang/naqfc-data
 EMI_PATH=/scratch3/NCEPDEV/stmp/Youhua.Tang/naqfc-data
+VIIRS_PATH=/scratch4/NCEPDEV/naqfc/Wei-ting.Hung/ALLDATA/viirs
+TEMPO_PATH=/scratch4/NCEPDEV/naqfc/Wei-ting.Hung/ALLDATA/tempo
+OBS_PATH=/scratch4/NCEPDEV/naqfc/Wei-ting.Hung/ALLDATA/airnow
 
 NO2_MODEL_PATH=None
 NH3_MODEL_PATH=None
 HCHO_MODEL_PATH=None
 OZONE_MODEL_PATH=./models/fcst_ozone_model.pth
 PM25_MODEL_PATH=./models/fcst_pm25_model.pth
+
+NO2_FUSION_PATH=None
+NH3_FUSION_PATH=None
+HCHO_FUSION_PATH=None
+OZONE_FUSION_PATH=None
+PM25_FUSION_PATH=None

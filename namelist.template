@@ -1,27 +1,38 @@
 AQM_DATE={{ aqm_date }}
-AQM_CYCLE=12
-FCST_LENGTH=72
-BNDY_LENGTH=6
-FCST_LAYER=64
+AQM_CYCLE={{ aqm_cycle }}
+FCST_LENGTH={{ fcst_length }}
+BNDY_LENGTH={{ bndy_length }}
+FCST_LAYER={{ fcst_layer }}
 
-MET_OPTION=gfs
-BNDY_OPTION=fcst
+MODEL_MODE={{ model_mode }}
 
-NO2=False
-NH3=False
-HCHO=False
-OZONE=True
-PM25=True
+MET_OPTION={{ met_option }}
+BNDY_OPTION={{ bndy_option }}
 
-RESTART=False
+NO2={{ no2 }}
+NH3={{ nh3 }}
+HCHO={{ hcho }}
+OZONE={{ ozone }}
+PM25={{ pm25 }}
 
-OUTPUT_PATH=/scratch4/NCEPDEV/naqfc/Wei-ting.Hung/deepaqm/output
-MET_PATH=/scratch3/NCEPDEV/stmp/Youhua.Tang/gfs-sfc
-AQM_PATH=/scratch3/NCEPDEV/stmp/Youhua.Tang/naqfc-data
-EMI_PATH=/scratch3/NCEPDEV/stmp/Youhua.Tang/naqfc-data
+RESTART={{ restart }}
 
-NO2_MODEL_PATH=None
-NH3_MODEL_PATH=None
-HCHO_MODEL_PATH=None
-OZONE_MODEL_PATH=./models/fcst_ozone_model.pth
-PM25_MODEL_PATH=./models/fcst_pm25_model.pth
+OUTPUT_PATH={{ output_path }}
+MET_PATH={{ met_path }}
+AQM_PATH={{ aqm_path }}
+EMI_PATH={{ emi_path }}
+VIIRS_PATH={{ viirs_path }}
+TEMPO_PATH={{ tempo_path }}
+OBS_PATH={{ obs_path }}
+
+NO2_MODEL_PATH={{ no2_model_path }}
+NH3_MODEL_PATH={{ nh3_model_path }}
+HCHO_MODEL_PATH={{ hcho_model_path }}
+OZONE_MODEL_PATH={{ ozone_model_path }}
+PM25_MODEL_PATH={{ pm25_model_path }}
+
+NO2_FUSION_PATH={{ no2_fusion_path }}
+NH3_FUSION_PATH={{ nh3_fusion_path }}
+HCHO_FUSION_PATH={{ hcho_fusion_path }}
+OZONE_FUSION_PATH={{ ozone_fusion_path }}
+PM25_FUSION_PATH={{ pm25_fusion_path }}

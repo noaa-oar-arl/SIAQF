@@ -11,8 +11,6 @@ from functools import partial
 sys.path.insert(0, "./toolkit")
 sys.path.insert(0, "./models")
 from aqm_loaders import aqm_loader
-from model_input_gen import input_generator
-from seq2seq_ConvLSTM import EncoderDecoderConvLSTM
 
 def namelist_config():
     namelist = pd.read_csv("./namelist", header=None, delimiter="=")
@@ -30,6 +28,7 @@ def namelist_config():
 
     MET_OPTION = namelist["MET_OPTION"]
     BNDY_OPTION = namelist["BNDY_OPTION"]
+    MODEL_MODE = int(namelist["MODEL_MODE"])
 
     FCST_OPTION = [
         namelist["NO2"] in ["True", "true"],
@@ -45,81 +44,208 @@ def namelist_config():
         namelist["OZONE_MODEL_PATH"],
         namelist["PM25_MODEL_PATH"]
         ]
+    FUSION_MODELS = [
+        namelist["NO2_FUSION_PATH"],
+        namelist["NH3_FUSION_PATH"],
+        namelist["HCHO_FUSION_PATH"],
+        namelist["OZONE_FUSION_PATH"],
+        namelist["PM25_FUSION_PATH"]
+        ]
     FCST_SPECIES = ["NO2", "NH3", "HCHO", "OZONE", "PM25"]
     FCST_SPECIES = [species for species, opt in zip(FCST_SPECIES, FCST_OPTION) if opt]
     FCST_MODELS = [models for models, opt in zip(FCST_MODELS, FCST_OPTION) if opt]
-    return AQM_DATE, AQM_CYCLE, OUTPUT_PATH, FCST_MODELS, FCST_LENGTH, BNDY_LENGTH, FCST_SPECIES, FCST_LAYER, MET_OPTION, BNDY_OPTION
+    FUSION_MODELS = [models for models, opt in zip(FUSION_MODELS, FCST_OPTION) if opt]
+    return AQM_DATE, AQM_CYCLE, OUTPUT_PATH, MODEL_MODE, FCST_MODELS, FUSION_MODELS, FCST_LENGTH, BNDY_LENGTH, FCST_SPECIES, FCST_LAYER, MET_OPTION, BNDY_OPTION
 
-def fcst_task(idx, FCST_MODELS, FCST_SPECIES, INPUT_SET, FCST_LENGTH, species_fulllist, species_scaler, species_chan, species_emidx):
-    model_path = FCST_MODELS[idx]
-    species = FCST_SPECIES[idx]
-    scaler = species_scaler[species_fulllist.index(species)]
-    N_chan = species_chan[species_fulllist.index(species)]
-    em_idx = species_emidx[species_fulllist.index(species)]
-    input_em = INPUT_SET[0][:, :, em_idx, :, :]
-    input_label = np.expand_dims(INPUT_SET[3][:, :, idx, :, :], 2)
+class BaseModel():
+    def __init__(self, FCST_MODELS, FCST_SPECIES, INPUT_SET, FCST_LENGTH):
+        self.species_fulllist = ["NO2", "NH3", "HCHO", "OZONE", "PM25"]
+        self.species_scaler = [1e-2, 1e-2, 1e-2, (1e-2)*(1e+3),   10]
+        self.species_chan = [5+14+15+1, 5+14+15+1, 5+14+15+1, 5+14+6+1, 5+14+15+1]
+        self.species_emidx = [
+            np.arange(15),   # full list
+            np.arange(15),   # full list
+            np.arange(15),   # full list
+            [0, 3, 5, 8, 10, 13],  # NOx, VOC
+            np.arange(15)    # full list
+        ]
 
-    learningrate = 0.00001
-    model = EncoderDecoderConvLSTM(in_chan=N_chan, out_chan=1).to(device=device)
-    checkpoint = torch.load(model_path, map_location=torch.device(device))
-    model.load_state_dict(checkpoint["model_state_dict"])
+        self.models = FCST_MODELS
+        self.species = FCST_SPECIES
+        self.inputs = INPUT_SET
+        self.tfcst = FCST_LENGTH
 
-    print(f"{species} fcst model loaded: {model_path}", pd.Timestamp("now"))
+    def fcst_task(self, idx):
+        from seq2seq_ConvLSTM_Base import EncoderDecoderConvLSTM
+        model_path = self.models[idx]
+        species = self.species[idx]
+        scaler = self.species_scaler[self.species_fulllist.index(species)]
+        N_chan = self.species_chan[self.species_fulllist.index(species)]
+        em_idx = self.species_emidx[self.species_fulllist.index(species)]
+        input_em = self.inputs[0][:, :, em_idx, :, :]
+        input_label = np.expand_dims(self.inputs[3][:, :, idx, :, :], 2)
+    
+        learningrate = 0.00001
+        model = EncoderDecoderConvLSTM(in_chan=N_chan, out_chan=1).to(device=device)
+        checkpoint = torch.load(model_path, map_location=torch.device(device))
+        model.load_state_dict(checkpoint["model_state_dict"])
+    
+        print(f"{species} fcst model loaded: {model_path}", pd.Timestamp("now"))
+    
+        # tensor size: batch, time, channel, height, width
+        tensor_em = torch.Tensor(input_em)
+        tensor_ic = torch.Tensor(self.inputs[1])
+        tensor_met = torch.Tensor(self.inputs[2])
+        tensor_label = torch.Tensor(input_label)
+        tensor_input = torch.utils.data.TensorDataset(tensor_em, tensor_ic, tensor_met, tensor_label)
+        data_loader = torch.utils.data.DataLoader(tensor_input, batch_size=1, shuffle=False, num_workers=0)
+        print("Data loader created.")
+    
+        model.eval()
+        with torch.no_grad():
+            for batch_idx, (em, gd, met, label) in enumerate(data_loader):
+                tmet = torch.cat((em, met), 2)
+                tmet = tmet.to(device=device)
+                gd = gd.to(device=device)
+                label = label.to(device=device)
+                out = model(tmet, label, gd[:, 0, :, :, :], self.tfcst)
+        out = np.squeeze(out.cpu().detach().numpy())
+        out = out * scaler
+        print(f"{species} fcst generated", pd.Timestamp("now"))
+        return out
+    
+    def run_fcst_model(self):
+        #worker = partial(
+        #    fcst_task,
+        #    FCST_MODELS=FCST_MODELS,
+        #    FCST_SPECIES=FCST_SPECIES,
+        #    INPUT_SET=INPUT_SET,
+        #    FCST_LENGTH=FCST_LENGTH,
+        #    species_fulllist=species_fulllist,
+        #    species_scaler=species_scaler,
+        #    species_chan=species_chan,
+        #    species_emidx=species_emidx
+        #)
+        #with multiprocessing.Pool() as pool:
+        #    total_out = pool.map(worker, range(len(FCST_MODELS)))
+    
+        total_out = []
+        for i in range(len(self.models)):
+            predic = self.fcst_task(i)
+            total_out += [predic]
+        total_out = np.stack(total_out, 1)
+        return total_out
 
-    # tensor size: batch, time, channel, height, width
-    tensor_em = torch.Tensor(input_em)
-    tensor_ic = torch.Tensor(INPUT_SET[1])
-    tensor_met = torch.Tensor(INPUT_SET[2])
-    tensor_label = torch.Tensor(input_label)
-    tensor_input = torch.utils.data.TensorDataset(tensor_em, tensor_ic, tensor_met, tensor_label)
-    data_loader = torch.utils.data.DataLoader(tensor_input, batch_size=1, shuffle=False, num_workers=0)
-    print("Data loader created.")
+class FusionModel():
+    def __init__(self, FUSION_MODELS, FCST_MODELS, FCST_SPECIES, INPUT_SET, INPUT_LBC, FCST_LENGTH):
+        self.species_fulllist = ["NO2", "NH3", "HCHO", "OZONE", "PM25"]
+        self.species_scaler = [1e-2, 1e-2, 1e-2, (1e-2)*(1e+3),   10]
+        self.fusion_chan = 5+14+4+2
+        self.fcst_chan = 5+14+1
 
-    model.eval()
-    with torch.no_grad():
-        for batch_idx, (em, gd, met, label) in enumerate(data_loader):
-            tmet = torch.cat((em, met), 2)
-            tmet = tmet.to(device=device)
-            gd = gd.to(device=device)
-            label = label.to(device=device)
-            out = model(tmet, label, gd[:, 0, :, :, :], FCST_LENGTH)
-    out = np.squeeze(out.cpu().detach().numpy())
-    out = out * scaler
-    print(f"{species} fcst generated", pd.Timestamp("now"))
-    return out
+        self.fusion_models = FUSION_MODELS
+        self.models = FCST_MODELS
+        self.species = FCST_SPECIES
+        self.inputs = INPUT_SET
+        self.lbc = INPUT_LBC
+        self.tfcst = FCST_LENGTH
 
-def run_fcst_model(FCST_MODELS, INPUT_SET, FCST_SPECIES, FCST_LENGTH):
-    species_fulllist = ["NO2", "NH3", "HCHO", "OZONE", "PM25"]
-    species_scaler = [1e-2, 1e-2, 1e-2, (1e-2)*(1e+3),   10]
-    species_chan = [5+14+15+1, 5+14+15+1, 5+14+15+1, 5+14+6+1, 5+14+15+1]
-    species_emidx = [
-        np.arange(15),   # full list
-        np.arange(15),   # full list
-        np.arange(15),   # full list
-        [0, 3, 5, 8, 10, 13],  # NOx, VOC
-        np.arange(15)    # full list
-    ]
+    def fusion_task(self, idx):
+        from seq2seq_ConvLSTM_Fusion_ic import EncoderDecoderConvLSTM
+        model_path = self.fusion_models[idx]
+        species = self.species[idx]
+        scaler = self.species_scaler[self.species_fulllist.index(species)]
+        N_chan = self.fusion_chan
+        input_met = self.inputs[2][:, :24, :, :, :]
+        input_label = self.inputs[3][:, :, 2*idx:2*idx+2, :, :]
+    
+        learningrate = 0.00001
+        model = EncoderDecoderConvLSTM(in_chan=N_chan, out_chan=1).to(device=device)
+        checkpoint = torch.load(model_path, map_location=torch.device(device))
+        model.load_state_dict(checkpoint["model_state_dict"])
+    
+        # tensor size: batch, time, channel, height, width
+        tensor_sat = torch.Tensor(self.inputs[0])
+        tensor_gd = torch.Tensor(self.inputs[1])
+        tensor_met = torch.Tensor(input_met)
+        tensor_label = torch.Tensor(input_label)
+        tensor_input = torch.utils.data.TensorDataset(tensor_sat, tensor_gd, tensor_met, tensor_label)
+        data_loader = torch.utils.data.DataLoader(tensor_input, batch_size=1, shuffle=False, num_workers=8)
+        print("Data loader created.")
+    
+        model.eval()
+        with torch.no_grad():
+            for batch_idx, (sat, gd, met, label) in enumerate(data_loader):
+                tmet = torch.cat((sat[:, 0, :, :, :], gd[:, 0, :, :, :]), 1)
+                tmet = tmet.to(device=device)
+                met = met.to(device=device)
+                label = label.to(device=device)
+                out = model(met, label, tmet, self.tfcst)
+        out = out.cpu().detach().numpy()
+        print(f"{species} fused ic generated", pd.Timestamp("now"))
+        return out
 
-    #worker = partial(
-    #    fcst_task,
-    #    FCST_MODELS=FCST_MODELS,
-    #    FCST_SPECIES=FCST_SPECIES,
-    #    INPUT_SET=INPUT_SET,
-    #    FCST_LENGTH=FCST_LENGTH,
-    #    species_fulllist=species_fulllist,
-    #    species_scaler=species_scaler,
-    #    species_chan=species_chan,
-    #    species_emidx=species_emidx
-    #)
-    #with multiprocessing.Pool() as pool:
-    #    total_out = pool.map(worker, range(len(FCST_MODELS)))
+    def run_fusion_model(self):
+        total_out = []
+        for i in range(len(self.fusion_models)):
+            predic = self.fusion_task(i)
+            total_out += [predic]
+        total_out = np.concatenate(total_out, 1)
+        self.fusedic = total_out
+        return total_out
+   
+    def create_fused_labels(self):
+        label = np.expand_dims(self.fusedic, axis=1)  # time axis
+        label = np.repeat(label, self.tfcst + 1, axis=1)
+        # replace boundaries
+        label[:, :, :, 0, :] = np.expand_dims(self.lbc[0], 0)
+        label[:, :, :, -1, :] = np.expand_dims(self.lbc[1], 0)
+        label[:, :, :, :, 0] = np.expand_dims(self.lbc[2], 0)
+        label[:, :, :, :, -1] = np.expand_dims(self.lbc[3], 0)
+        print(f"Fused label created", pd.Timestamp("now"))
+        self.fused_inputs = [self.inputs[1], self.inputs[2], label]
 
-    total_out = []
-    for i in range(len(FCST_MODELS)):
-        predic = fcst_task(i, FCST_MODELS, FCST_SPECIES, INPUT_SET, FCST_LENGTH, species_fulllist, species_scaler, species_chan, species_emidx)
-        total_out += [predic]
-    total_out = np.stack(total_out, 1)
-    return total_out
+    def fcst_task(self, idx):
+        from seq2seq_ConvLSTM_Fusion_fcst import EncoderDecoderConvLSTM
+        model_path = self.models[idx]
+        species = self.species[idx]
+        scaler = self.species_scaler[self.species_fulllist.index(species)]
+        N_chan = self.fcst_chan
+        input_label = self.fused_inputs[2][:, :, [idx], :, :]
+
+        learningrate = 0.00001
+        model = EncoderDecoderConvLSTM(in_chan=N_chan, out_chan=1).to(device=device)
+        checkpoint = torch.load(model_path, map_location=torch.device(device))
+        model.load_state_dict(checkpoint["model_state_dict"])
+    
+        # tensor size: batch, time, channel, height, width
+        tensor_gd = torch.Tensor(self.fused_inputs[0])
+        tensor_met = torch.Tensor(self.fused_inputs[1])
+        tensor_label = torch.Tensor(input_label)
+        tensor_input = torch.utils.data.TensorDataset(tensor_gd, tensor_met, tensor_label)
+        data_loader = torch.utils.data.DataLoader(tensor_input, batch_size=1, shuffle=False, num_workers=8)
+        print("Data loader created.")
+    
+        model.eval()
+        with torch.no_grad():
+            for batch_idx, (gd, met, label) in enumerate(data_loader):
+                gd = gd.to(device=device)
+                met = met.to(device=device)
+                label = label.to(device=device)
+                out = model(met, label, gd[:, 0, :, :, :], self.tfcst)
+        out = np.squeeze(out.cpu().detach().numpy())
+        out = out * scaler
+        print(f"{species} fcst generated", pd.Timestamp("now"))
+        return out
+
+    def run_fcst_model(self):
+        total_out = []
+        for i in range(len(self.models)):
+            predic = self.fcst_task(i)
+            total_out += [predic]
+        total_out = np.stack(total_out, 1)
+        return total_out
+
 
 def save_prediction(TIMESTAMP, FCST_LENGTH, INIT, OUTPUT, FCST_SPECIES, FCST_LAYER, OUTPUT_PATH):
     var_fulllist = ["NO2", "NH3", "HCHO", "OZONE", "PM25"]
@@ -194,7 +320,7 @@ def save_prediction(TIMESTAMP, FCST_LENGTH, INIT, OUTPUT, FCST_SPECIES, FCST_LAY
 
 
 # ---- Load configs ----
-AQM_DATE, AQM_CYCLE, OUTPUT_PATH, FCST_MODELS, FCST_LENGTH, BNDY_LENGTH, FCST_SPECIES, FCST_LAYER, BNDY_OPTION, MET_OPTION = namelist_config()
+AQM_DATE, AQM_CYCLE, OUTPUT_PATH, MODEL_MODE, FCST_MODELS, FUSION_MODELS, FCST_LENGTH, BNDY_LENGTH, FCST_SPECIES, FCST_LAYER, BNDY_OPTION, MET_OPTION = namelist_config()
 os.makedirs(OUTPUT_PATH, exist_ok=True)
 
 # ---- Log saving ----
@@ -235,6 +361,7 @@ if(torch.cuda.is_available()):
     device = torch.device("cuda")
 
 
+print(f"DeepAQM mode: {MODEL_MODE}")
 print(f"AQM initial time: {AQM_DATE}{AQM_CYCLE}")
 print(f"Forecast length: {FCST_LENGTH}")
 print(f"LBC update timestep: {np.arange(0, FCST_LENGTH + 1, BNDY_LENGTH)}")
@@ -244,25 +371,50 @@ print(f"Work directory: {OUTPUT_PATH}")
 
 print("---- Generating input data...", pd.Timestamp("now"))
 
-input_gen = input_generator()
-input_gen.main_driver()
-INPUT_DATA = input_gen.data_set   # (EMI, STATIC, MET, LABEL)
+if MODEL_MODE == 0:  # default; surface only, direct icbc from AQM
+    from model_input_gen import input_generator
+    input_gen = input_generator()
+    input_gen.main_driver()
+    INPUT_DATA = input_gen.data_set   # (EMI, STATIC, MET, LABEL)
+    
+    print("---- Input data ready!", pd.Timestamp("now"))
+    print("Shape = [batch, time, channel, height, width]")
+    print(f"Emissions: {INPUT_DATA[0].shape}")
+    print(f"Static fields: {INPUT_DATA[1].shape}")
+    print(f"Meteorology: {INPUT_DATA[2].shape}")
+    print(f"Initial condition: {INPUT_DATA[3].shape}")
+    
+    print("---- Running forecast...", pd.Timestamp("now"))
+    
+    deepaqm = BaseModel(FCST_MODELS, FCST_SPECIES, INPUT_DATA, FCST_LENGTH)
+    FCST_OUTPUT = deepaqm.run_fcst_model()
+    INIT = INPUT_DATA[3][:, 0, :, :, :]
 
-print("---- Input data ready!", pd.Timestamp("now"))
-print("Shape = [batch, time, channel, height, width]")
-print(f"Emissions: {INPUT_DATA[0].shape}")
-print(f"Static fields: {INPUT_DATA[1].shape}")
-print(f"Meteorology: {INPUT_DATA[2].shape}")
-print(f"Predicted chemical: {INPUT_DATA[3].shape}")
+elif MODEL_MODE == 1:  # fusion mode; surface only, use ic fused with satellites and surface obs
+    from model_fusion_gen import input_generator
+    input_gen = input_generator()
+    input_gen.main_driver(TEMPO_NO2_MASK=False)
+    INPUT_DATA = input_gen.data_set   # (SAT, STATIC, MET, LABEL)
+    INPUT_LBC = input_gen.lbc  # (top, bottom, left, right)
 
-print("---- Running forecast...", pd.Timestamp("now"))
+    print("---- Input data ready!", pd.Timestamp("now"))
+    print("Shape = [batch, time, channel, height, width]")
+    print(f"Satellite: {INPUT_DATA[0].shape}")
+    print(f"Static fields: {INPUT_DATA[1].shape}")
+    print(f"Meteorology: {INPUT_DATA[2].shape}")
+    print(f"Surface observation: {INPUT_DATA[3].shape}")
 
-FCST_OUTPUT = run_fcst_model(FCST_MODELS, INPUT_DATA, FCST_SPECIES, FCST_LENGTH)
+    print("---- Running forecast...", pd.Timestamp("now"))
+
+    deepaqm = FusionModel(FUSION_MODELS, FCST_MODELS, FCST_SPECIES, INPUT_DATA, INPUT_LBC, FCST_LENGTH)
+    INIT = deepaqm.run_fusion_model()
+    deepaqm.create_fused_labels()
+    FCST_OUTPUT = deepaqm.run_fcst_model()
 
 print("---- Forecast complete!", pd.Timestamp("now"))
 print(f"Output min: {FCST_OUTPUT.min()}, max: {FCST_OUTPUT.max()}")
 print(f"Output shape: {FCST_OUTPUT.shape}")
 
-save_prediction(AQM_DATE + AQM_CYCLE, FCST_LENGTH, INPUT_DATA[3][:, 0, :, :, :], FCST_OUTPUT, FCST_SPECIES, FCST_LAYER, OUTPUT_PATH)
+save_prediction(AQM_DATE + AQM_CYCLE, FCST_LENGTH, INIT, FCST_OUTPUT, FCST_SPECIES, FCST_LAYER, OUTPUT_PATH)
 
 open(f"{OUTPUT_PATH}/complete_checkpoint", "a").close()
